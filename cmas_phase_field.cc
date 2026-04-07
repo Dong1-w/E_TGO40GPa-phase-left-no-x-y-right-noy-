@@ -111,10 +111,7 @@ constexpr double G_TC = 50.0 * 1e-3;        // 0.05 N/mm
 constexpr double sigma_TC = 1000e6 * 1e-6;  // 1000 MPa
 
 // TGO layer
-    // NOTE: This deliberately follows the validated full-domain setup used by
-    // cmas_phase_field2.cc/solution_1344 reference output to preserve the
-    // calibrated phase-field response for this model configuration.
-    constexpr double E_TGO = 1e-4;             // Effective calibrated modulus parameter (MPa)
+constexpr double E_TGO = 40e9 * 1e-6;      // 40 GPa
 constexpr double nu_TGO = 0.12;
 constexpr double G_TGO = 40 * 1e-3;       // 0.04 N/mm
 constexpr double sigma_TGO = 40e6 * 1e-6;   // 40 MPa
@@ -544,8 +541,11 @@ constraints_phase_field.close();
 constraints_elasticity.clear();
 constraints_elasticity.reinit(locally_relevant_dofs_elasticity);
 DoFTools::make_hanging_node_constraints(dof_handler_elasticity, constraints_elasticity);
+    // Left boundary (id=3): fix both x and y displacement.
     VectorTools::interpolate_boundary_values(dof_handler_elasticity, 3, Functions::ZeroFunction<dim>(dim), constraints_elasticity);
-    VectorTools::interpolate_boundary_values(dof_handler_elasticity, 4, Functions::ZeroFunction<dim>(dim), constraints_elasticity);
+    // Right boundary (id=4): fix only y displacement, keep x free.
+    const ComponentMask right_y_mask = fe_elasticity.component_mask(FEValuesExtractors::Scalar(1));
+    VectorTools::interpolate_boundary_values(dof_handler_elasticity, 4, Functions::ZeroFunction<dim>(dim), constraints_elasticity, right_y_mask);
 constraints_elasticity.close();
 }
 
@@ -806,7 +806,7 @@ if (local_sigma_c < 1e-6) local_sigma_c = 1e-6;
 }
 
 double Y_bar = 0.5 * std::max(0.0, sigma1) * std::max(0.0, sigma1) / E;
-double Y0 = 0.5 * local_sigma_c * local_sigma_c / E;  //sigma_cµ¥Î»ÊÇPa
+double Y0 = 0.5 * local_sigma_c * local_sigma_c / E;  //sigma_cï¿½ï¿½Î»ï¿½ï¿½Pa
 
 // FIX for spurious phase field accumulation:
 // Only allow damage evolution when stress exceeds threshold (Y_bar > Y0)
@@ -1272,44 +1272,44 @@ residual_contribution += S[k][l] * dE_kl;
 }
 
 
-// ¶¨ÒåÈÅ¶¯ÇøÓò£ºÔÚ¹ÄÅÝÔ¤ÆÚµÄÖÐÐÄÎ»ÖÃ (x=4.0mm ¸½½ü)
-// ¶¨ÒåÈÅ¶¯Ê±¼ä£º½öÔÚËðÉË³õÆÚÊ©¼Ó£¬Ò»µ©±äÐÎ¿ªÊ¼¾ÍÒÆ³ý£¬»òÕßÒ»Ö±±£³ÖÎ¢Ð¡Öµ
-bool is_center_region = (std::abs(cell_center[0] - 4.0) < 0.5); // ¿í¶È 1mm µÄÖÐÐÄÇøÓò
-bool is_top_surface = (std::abs(cell_center[1] - Domain::y_tc_top) < 0.05); // ¿¿½üÉÏ±íÃæ
+// ï¿½ï¿½ï¿½ï¿½ï¿½Å¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¹ï¿½ï¿½ï¿½Ô¤ï¿½Úµï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ (x=4.0mm ï¿½ï¿½ï¿½ï¿½)
+// ï¿½ï¿½ï¿½ï¿½ï¿½Å¶ï¿½Ê±ï¿½ä£ºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë³ï¿½ï¿½ï¿½Ê©ï¿½Ó£ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½Î¿ï¿½Ê¼ï¿½ï¿½ï¿½Æ³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»Ö±ï¿½ï¿½ï¿½ï¿½Î¢Ð¡Öµ
+bool is_center_region = (std::abs(cell_center[0] - 4.0) < 0.5); // ï¿½ï¿½ï¿½ï¿½ 1mm ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+bool is_top_surface = (std::abs(cell_center[1] - Domain::y_tc_top) < 0.05); // ï¿½ï¿½ï¿½ï¿½ï¿½Ï±ï¿½ï¿½ï¿½
 
-// ÈÅ¶¯Ç¿¶È£º²»ÐèÒªºÜ´ó£¬Ö»ÐèÒªÆÆ»µ¶Ô³ÆÐÔ
-// ±ÈÈç 0.1 MPa µÄÇ£ÒýÁ¦ (Ïà¶ÔÓÚ 40GPa µÄÄ£Á¿Î¢²»×ãµÀ£¬µ«×ãÒÔÓÕµ¼·½Ïò)
+// ï¿½Å¶ï¿½Ç¿ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Ü´ï¿½Ö»ï¿½ï¿½Òªï¿½Æ»ï¿½ï¿½Ô³ï¿½ï¿½ï¿½
+// ï¿½ï¿½ï¿½ï¿½ 0.1 MPa ï¿½ï¿½Ç£ï¿½ï¿½ï¿½ï¿½ (ï¿½ï¿½ï¿½ï¿½ï¿½ 40GPa ï¿½ï¿½Ä£ï¿½ï¿½Î¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õµï¿½ï¿½ï¿½ï¿½ï¿½)
 double perturbation_pressure = 0.0;
 
-// ½öÔÚÖÐÐÄÉÏ±íÃæÇÒÊ±¼ä½ÏÔçÊ±Ê©¼Ó£¬»òÕßµ±Î»ÒÆ»¹ºÜÐ¡Ê±Ê©¼Ó
-if (is_center_region && is_top_surface && time < 100000.0) // ¼ÙÉèÔÚÇ°1000ÃëÄÚÊ©¼Ó
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï±ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Ê±Ê©ï¿½Ó£ï¿½ï¿½ï¿½ï¿½ßµï¿½Î»ï¿½Æ»ï¿½ï¿½ï¿½Ð¡Ê±Ê©ï¿½ï¿½
+if (is_center_region && is_top_surface && time < 100000.0) // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç°1000ï¿½ï¿½ï¿½ï¿½Ê©ï¿½ï¿½
 {
-perturbation_pressure = 0.1; // 1 MPa µÄÏòÉÏÇ£ÒýÁ¦
+perturbation_pressure = 0.1; // 1 MPa ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç£ï¿½ï¿½ï¿½ï¿½
 }
-// »òÕß£ºÊ¼ÖÕÊ©¼ÓÒ»¸ö¼«Ð¡µÄÖØ??·´ÏòÁ¦
+// ï¿½ï¿½ï¿½ß£ï¿½Ê¼ï¿½ï¿½Ê©ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½Ð¡ï¿½ï¿½ï¿½ï¿½??ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 // perturbation_pressure = 0.1; 
 
-// ½«ÈÅ¶¯Á¦¼Óµ½²Ð²îÏòÁ¿ÖÐ (RHS)
-// ×¢Òâ£ºelasticity µÄ RHS ÊÇ -Residual£¬ËùÒÔÍâÁ¦ F Ó¦¸ÃÒÔ +F µÄÐÎÊ½¼Ó½øÈ¥
-// ¶ÔÓ¦µÄÈõÐÎÊ½ÏîÊÇ£º - integral( sigma : grad_v ) + integral( f * v ) = 0
-// ËùÒÔ Residual = integral( sigma : grad_v ) - integral( f * v )
-// ËùÒÔ RHS = -Residual = -integral( sigma : grad_v ) + integral( f * v )
+// ï¿½ï¿½ï¿½Å¶ï¿½ï¿½ï¿½ï¿½Óµï¿½ï¿½Ð²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (RHS)
+// ×¢ï¿½â£ºelasticity ï¿½ï¿½ RHS ï¿½ï¿½ -Residualï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ F Ó¦ï¿½ï¿½ï¿½ï¿½ +F ï¿½ï¿½ï¿½ï¿½Ê½ï¿½Ó½ï¿½È¥
+// ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½ï¿½ï¿½ï¿½Ç£ï¿½ - integral( sigma : grad_v ) + integral( f * v ) = 0
+// ï¿½ï¿½ï¿½ï¿½ Residual = integral( sigma : grad_v ) - integral( f * v )
+// ï¿½ï¿½ï¿½ï¿½ RHS = -Residual = -integral( sigma : grad_v ) + integral( f * v )
 
 if (std::abs(perturbation_pressure) > 1e-10)
 {
-// ±éÀúµ±Ç°µ¥ÔªµÄ×ÔÓÉ¶È
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½Ôªï¿½ï¿½ï¿½ï¿½ï¿½É¶ï¿½
 for (unsigned int i = 0; i < dofs_per_cell; ++i)
 {
 const unsigned int comp_i = fe_elasticity.system_to_component_index(i).first;
 
-// ½öÔÚ Y ·½Ïò (comp_i == 1) Ê©¼ÓÁ¦
+// ï¿½ï¿½ï¿½ï¿½ Y ï¿½ï¿½ï¿½ï¿½ (comp_i == 1) Ê©ï¿½ï¿½ï¿½ï¿½
 if (comp_i == 1)
 {
 const double shape_i = fe_values.shape_value(i, q);
-// Ê©¼ÓÁ¦Ïî£º f * v * JxW
-// ÕâÀï¼ò»¯ÎªÌå»ýÁ¦ÐÎÊ½Ê©¼ÓÔÚ±í²ãµ¥ÔªÉÏ£¬»òÕßÃæ»ý·Ö
-// ÓÉÓÚÊÇÔÚ cell »ý·ÖÖÐ£¬ÕâÏàµ±ÓÚÒ»¸öÌå»ýÁ¦ density
-// ÎªÁË·½±ã£¬Ö±½Ó¼ÓÔÚ RHS ÉÏ
+// Ê©ï¿½ï¿½ï¿½ï¿½ï¿½î£º f * v * JxW
+// ï¿½ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½Ê©ï¿½ï¿½ï¿½Ú±ï¿½ï¿½ãµ¥Ôªï¿½Ï£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ cell ï¿½ï¿½ï¿½ï¿½ï¿½Ð£ï¿½ï¿½ï¿½ï¿½àµ±ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ density
+// Îªï¿½Ë·ï¿½ï¿½ã£¬Ö±ï¿½Ó¼ï¿½ï¿½ï¿½ RHS ï¿½ï¿½
 cell_rhs(i) += perturbation_pressure * shape_i * JxW; 
 }
 }
@@ -1324,7 +1324,7 @@ const Tensor<1, dim> &grad_Nj = fe_values.shape_grad(j, q);
 
 double tangent_contribution = 0.0;
 
-// 1. Material stiffness: d?¦·/(dE dE) : (dE/du_i) : (dE/du_j)
+// 1. Material stiffness: d?ï¿½ï¿½/(dE dE) : (dE/du_i) : (dE/du_j)
 // For St. Venant-Kirchhoff: C_ijkl = lambda * delta_ij * delta_kl + 2*mu * 0.5*(delta_ik*delta_jl + delta_il*delta_jk)
 for (unsigned int k = 0; k < dim; ++k) {
 for (unsigned int l = 0; l < dim; ++l) {
@@ -1733,9 +1733,9 @@ template <int dim>
 double CMASProblem<dim>::compute_time_step_size()
 {
 double local_max_change_conc = 0.0;
-double local_max_abs_change_phi = 0.0; // ´æ´¢Ïà³¡±äÁ¿µÄ×î´ó¾ø¶Ô±ä»¯Á¿
+double local_max_abs_change_phi = 0.0; // ï¿½æ´¢ï¿½à³¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô±ä»¯ï¿½ï¿½
 
-// 1. ¼ÆËãÅ¨¶ÈµÄ±ä»¯£¨±£³ÖÔ­ÓÐÂß¼­£¬»ùÓÚ¾ø¶Ô»òÏà¶Ô±ä»¯£¬ÕâÀï¼ÙÉèÅ¨¶ÈÈÔÈ»¹Ø×¢±ä»¯·ù¶È£©
+// 1. ï¿½ï¿½ï¿½ï¿½Å¨ï¿½ÈµÄ±ä»¯ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô­ï¿½ï¿½ï¿½ß¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¾ï¿½ï¿½Ô»ï¿½ï¿½ï¿½Ô±ä»¯ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å¨ï¿½ï¿½ï¿½ï¿½È»ï¿½ï¿½×¢ï¿½ä»¯ï¿½ï¿½ï¿½È£ï¿½
 for (auto it = locally_owned_dofs_concentration.begin();
 it != locally_owned_dofs_concentration.end(); ++it)
 {
@@ -1750,7 +1750,7 @@ local_max_change_conc = std::max(local_max_change_conc, change);
 }
 }
 
-// 2. ¼ÆËãÏà³¡±äÁ¿µÄ¾ø¶Ô±ä»¯Á¿
+// 2. ï¿½ï¿½ï¿½ï¿½ï¿½à³¡ï¿½ï¿½ï¿½ï¿½ï¿½Ä¾ï¿½ï¿½Ô±ä»¯ï¿½ï¿½
 for (auto it = locally_owned_dofs_phase_field.begin();
 it != locally_owned_dofs_phase_field.end(); ++it)
 {
@@ -1761,22 +1761,22 @@ double abs_change = std::abs(new_val - old_val);
 local_max_abs_change_phi = std::max(local_max_abs_change_phi, abs_change);
 }
 
-// MPI ¹æÔ¼»ñÈ¡È«¾Ö×î´óÖµ
+// MPI ï¿½ï¿½Ô¼ï¿½ï¿½È¡È«ï¿½ï¿½ï¿½ï¿½ï¿½Öµ
 double max_change_conc = Utilities::MPI::max(local_max_change_conc, mpi_communicator);
 double max_abs_change_phi = Utilities::MPI::max(local_max_abs_change_phi, mpi_communicator);
 
 double new_dt = time_step;
 
-// Âß¼­ÐÞ¸Ä£ºÈç¹ûÏà³¡¾ø¶Ô±ä»¯Á¿³¬¹ý 0.05£¬Ôò²½³¤¼õ°ë
+// ï¿½ß¼ï¿½ï¿½Þ¸Ä£ï¿½ï¿½ï¿½ï¿½ï¿½à³¡ï¿½ï¿½ï¿½Ô±ä»¯ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 0.05ï¿½ï¿½ï¿½ò²½³ï¿½ï¿½ï¿½ï¿½ï¿½
 if (max_abs_change_phi > 0.05)
 {
 new_dt = std::max(time_step * 0.5, TimeStep::dt_min);
-pcout << "    -> Adaptive DT: |¦¤phi| = " << max_abs_change_phi 
+pcout << "    -> Adaptive DT: |ï¿½ï¿½phi| = " << max_abs_change_phi 
 << " > 0.05. Halving dt to " << new_dt << std::endl;
 }
 else
 {
-// Èç¹û±ä»¯Æ½»º£¬³¢ÊÔÔö¼Ó²½³¤£¨»ùÓÚÅ¨¶È±ä»¯¿ØÖÆ£©
+// ï¿½ï¿½ï¿½ï¿½ä»¯Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å¨ï¿½È±ä»¯ï¿½ï¿½ï¿½Æ£ï¿½
 if (max_change_conc < 0.01 && max_abs_change_phi < 0.01)
 new_dt = std::min(time_step * 2.0, TimeStep::dt_max);
 else if (max_change_conc < 0.20 && max_abs_change_phi < 0.03)
@@ -2082,52 +2082,77 @@ sxx_out(cell_idx) = 0; syy_out(cell_idx) = 0; sxy_out(cell_idx) = 0;
 }
 ++cell_idx;
 }
-data_out.add_data_vector(sigma1_out, "sigma1", DataOut<dim>::type_cell_data);
-data_out.add_data_vector(sigma2_out, "sigma2", DataOut<dim>::type_cell_data);
-data_out.add_data_vector(sigma3_out, "sigma3", DataOut<dim>::type_cell_data);
-data_out.add_data_vector(sxx_out, "stress_xx", DataOut<dim>::type_cell_data);
-data_out.add_data_vector(syy_out, "stress_yy", DataOut<dim>::type_cell_data);
-data_out.add_data_vector(sxy_out, "stress_xy", DataOut<dim>::type_cell_data);
+ Vector<double> youngs_modulus_out(triangulation.n_active_cells());
+ QMidpoint<dim> midpoint_quadrature;
+ FEValues<dim> fe_values_phase_mid(fe_phase_field, midpoint_quadrature, update_values | update_quadrature_points);
+ FEValues<dim> fe_values_conc_mid(fe_concentration, midpoint_quadrature, update_values);
+ std::vector<double> phi_mid(1);
+ std::vector<Vector<double>> conc_mid(1, Vector<double>(6));
+
+ cell_idx = 0;
+ for (const auto &cell : triangulation.active_cell_iterators()) {
+ if (cell->is_locally_owned()) {
+ const auto phase_cell = cell->as_dof_handler_iterator(dof_handler_phase_field);
+ const auto conc_cell = cell->as_dof_handler_iterator(dof_handler_concentration);
+ fe_values_phase_mid.reinit(phase_cell);
+ fe_values_conc_mid.reinit(conc_cell);
+ fe_values_phase_mid.get_function_values(locally_relevant_solution_phase_field, phi_mid);
+ fe_values_conc_mid.get_function_values(locally_relevant_solution_concentration, conc_mid);
+ const Point<dim> x_mid = fe_values_phase_mid.quadrature_point(0);
+ youngs_modulus_out(cell_idx) = get_E(x_mid, phi_mid[0], conc_mid[0][4], conc_mid[0][5]);
+ } else {
+ youngs_modulus_out(cell_idx) = 0.0;
+ }
+ ++cell_idx;
+ }
+
+ data_out.add_data_vector(sigma1_out, "sigma1", DataOut<dim>::type_cell_data);
+ data_out.add_data_vector(sigma2_out, "sigma2", DataOut<dim>::type_cell_data);
+ data_out.add_data_vector(sigma3_out, "sigma3", DataOut<dim>::type_cell_data);
+ data_out.add_data_vector(sxx_out, "stress_xx", DataOut<dim>::type_cell_data);
+ data_out.add_data_vector(syy_out, "stress_yy", DataOut<dim>::type_cell_data);
+ data_out.add_data_vector(sxy_out, "stress_xy", DataOut<dim>::type_cell_data);
+ data_out.add_data_vector(youngs_modulus_out, "youngs_modulus", DataOut<dim>::type_cell_data);
 
 data_out.build_patches();
 data_out.write_vtu_with_pvtu_record("./", "solution", step, mpi_communicator, 2, 0);
 
-// === ÐÂÔö´úÂë¿ªÊ¼ ===
+// === ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë¿ªÊ¼ ===
 if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
 {
-// ¼ÇÂ¼µ±Ç°ÎïÀíÊ±¼äºÍ¶ÔÓ¦µÄÎÄ¼þÃû
-// ×¢Òâ£ºwrite_vtu_with_pvtu_record Éú³ÉµÄÎÄ¼þÃû¸ñÊ½Í¨³£ÊÇ "solution_²½Êý.pvtu"
+// ï¿½ï¿½Â¼ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½Í¶ï¿½Ó¦ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
+// ×¢ï¿½â£ºwrite_vtu_with_pvtu_record ï¿½ï¿½ï¿½Éµï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½Ê½Í¨ï¿½ï¿½ï¿½ï¿½ "solution_ï¿½ï¿½ï¿½ï¿½.pvtu"
 std::string filename = "solution_" + std::to_string(step) + ".pvtu";
 times_and_names.push_back({time, filename});
 
-// Ã¿´ÎÊä³ö¶¼¸üÐÂ pvd ÎÄ¼þ
+// Ã¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ pvd ï¿½Ä¼ï¿½
 std::ofstream output("solution.pvd");
 DataOutBase::write_pvd_record(output, times_and_names);
 }
-// === ÐÂÔö´úÂë½áÊø ===
+// === ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ===
 pcout << "  Output written for step " << step << std::endl;
 
 }
 template <int dim>
 double CMASProblem<dim>::compute_max_tgo_stress()
 {
-double local_max_tgo_sigma1 = -1e20; // ³õÊ¼»¯ÎªÒ»¸öºÜÐ¡µÄÊý
+double local_max_tgo_sigma1 = -1e20; // ï¿½ï¿½Ê¼ï¿½ï¿½ÎªÒ»ï¿½ï¿½ï¿½ï¿½Ð¡ï¿½ï¿½ï¿½ï¿½
 
-// ±éÀúËùÓÐ±¾µØÓµÓÐµÄµ¥Ôª
-unsigned int local_cell_index = 0; // ½ö¶Ô±¾µØÓµÓÐµ¥Ôª¼ÆÊý£¬¶ÔÓ¦ principal_stress_*
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð±ï¿½ï¿½ï¿½Óµï¿½ÐµÄµï¿½Ôª
+unsigned int local_cell_index = 0; // ï¿½ï¿½ï¿½Ô±ï¿½ï¿½ï¿½Óµï¿½Ðµï¿½Ôªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ principal_stress_*
 for (const auto &cell : triangulation.active_cell_iterators())
 {
 if (!cell->is_locally_owned())
 continue;
 
-// »ñÈ¡µ¥ÔªÖÐÐÄµãÒÔÅÐ¶ÏÊÇ·ñÊôÓÚ TGO ²ã
+// ï¿½ï¿½È¡ï¿½ï¿½Ôªï¿½ï¿½ï¿½Äµï¿½ï¿½ï¿½ï¿½Ð¶ï¿½ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½ TGO ï¿½ï¿½
 const Point<dim> cell_center = cell->center();
 MaterialLayer layer = get_layer(cell_center[1]);
 
 if (layer == TGO)
 {
-// ´ÓÖ®Ç°¼ÆËãºÃµÄ principal_stress_1 ÏòÁ¿ÖÐ»ñÈ¡¸Ãµ¥ÔªµÄÓ¦Á¦
-// principal_stress_1 ´æ´¢µÄÊÇÃ¿¸öµ¥ÔªÄÚ²¿»ý·ÖµãµÄ×î´óÖ÷Ó¦Á¦µÄ×î´óÖµ
+// ï¿½ï¿½Ö®Ç°ï¿½ï¿½ï¿½ï¿½Ãµï¿½ principal_stress_1 ï¿½ï¿½ï¿½ï¿½ï¿½Ð»ï¿½È¡ï¿½Ãµï¿½Ôªï¿½ï¿½Ó¦ï¿½ï¿½
+// principal_stress_1 ï¿½æ´¢ï¿½ï¿½ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½ï¿½Ôªï¿½Ú²ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµ
 double cell_sigma1 = principal_stress_1(local_cell_index);
 if (cell_sigma1 > local_max_tgo_sigma1)
 {
@@ -2137,10 +2162,10 @@ local_max_tgo_sigma1 = cell_sigma1;
 ++local_cell_index;
 }
 
-// ÔÚËùÓÐ MPI ½ø³ÌÖÐÈ¡×î´óÖµ
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ MPI ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½Öµ
 double global_max_tgo_sigma1 = Utilities::MPI::max(local_max_tgo_sigma1, mpi_communicator);
 
-// Èç¹ûÃ»ÓÐÕÒµ½ TGO µ¥Ôª£¨ÀíÂÛÉÏ²»Ó¦·¢Éú£©£¬±ÜÃâ·µ»Ø¸ºÎÞÇî
+// ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½Òµï¿½ TGO ï¿½ï¿½Ôªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï²ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½â·µï¿½Ø¸ï¿½ï¿½ï¿½ï¿½ï¿½
 if (global_max_tgo_sigma1 < -1e19) global_max_tgo_sigma1 = 0.0;
 
 return global_max_tgo_sigma1;
@@ -2169,10 +2194,10 @@ newton_update_phase_field = 0;
 compute_principal_stress();
 output_results(0);
 
-// === ÐÞ¸Ä¿ªÊ¼£ºÔÚ time loop Íâ²¿¶¨Òåµü´ú²ÎÊý ===
-const unsigned int max_outer_iterations = 1; // ×î´óÍâ²¿µü´ú´ÎÊý
-const double outer_tolerance = 5e-2;          // Íâ²¿µü´úÈÝ²î (phi µÄ±ä»¯Á¿)
-// === ÐÞ¸Ä½áÊø ===
+// === ï¿½Þ¸Ä¿ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ time loop ï¿½â²¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ===
+const unsigned int max_outer_iterations = 1; // ï¿½ï¿½ï¿½ï¿½â²¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+const double outer_tolerance = 5e-2;          // ï¿½â²¿ï¿½ï¿½ï¿½ï¿½ï¿½Ý²ï¿½ (phi ï¿½Ä±ä»¯ï¿½ï¿½)
+// === ï¿½Þ¸Ä½ï¿½ï¿½ï¿½ ===
 
 while (time < TimeStep::total_time)
 {
@@ -2180,45 +2205,45 @@ time += time_step;
 ++timestep_number;
 pcout << "\nTime step " << timestep_number << ", t = " << time / 60.0 << " min" << ", dt = " << time_step << " s" << std::endl;
 
-// 1. Å¨¶È³¡ñîºÏ½ÏÈõ£¬Í¨³£²»ÐèÒª·ÅÈëÄÚ²¿µü´ú£¬³ý·Ç·´Ó¦ÈÈ·Ç³£Ç¿
+// 1. Å¨ï¿½È³ï¿½ï¿½ï¿½Ï½ï¿½ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½Ó¦ï¿½È·Ç³ï¿½Ç¿
 pcout << "  Solving concentration equations..." << std::endl;
 assemble_concentration_system();
 solve_concentration();
 
-// === ÐÞ¸Ä¿ªÊ¼£ºÒýÈëÍâ²¿½»Ìæµü´ú ===
+// === ï¿½Þ¸Ä¿ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½â²¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ===
 pcout << "  Starting Staggered Iteration (Elasticity <-> Phase Field)..." << std::endl;
 
 unsigned int outer_iter = 0;
 double error_phi = 1.0;
 
-// ±¸·Ýµ±Ç°²½¿ªÊ¼Ê±µÄÏà³¡½â£¬ÓÃÓÚ¼ÆËãÃ¿Ò»²½µü´úµÄÐÞÕýÁ¿
+// ï¿½ï¿½ï¿½Ýµï¿½Ç°ï¿½ï¿½ï¿½ï¿½Ê¼Ê±ï¿½ï¿½ï¿½à³¡ï¿½â£¬ï¿½ï¿½ï¿½Ú¼ï¿½ï¿½ï¿½Ã¿Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 LA::MPI::Vector phi_prev_iter;
 phi_prev_iter.reinit(locally_owned_dofs_phase_field, mpi_communicator);
 
-// ÔÚ½øÈëµü´úÇ°£¬ÏÈÈÃ phi_prev_iter µÈÓÚÉÏÒ»Ê±¼ä²½µÄ½â(³õÊ¼²Â²â)
+// ï¿½Ú½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ phi_prev_iter ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»Ê±ï¿½ä²½ï¿½Ä½ï¿½(ï¿½ï¿½Ê¼ï¿½Â²ï¿½)
 phi_prev_iter = old_solution_phase_field;
 
 while (outer_iter < max_outer_iterations && error_phi > outer_tolerance)
 {
-// A. Çó½âµ¯ÐÔ³¡ (»ùÓÚµ±Ç°×îÐÂµÄ phi)
-// ×¢Òâ£ºassemble_elasticity_system ÄÚ²¿»á¶ÁÈ¡ locally_relevant_solution_phase_field
+// A. ï¿½ï¿½âµ¯ï¿½Ô³ï¿½ (ï¿½ï¿½ï¿½Úµï¿½Ç°ï¿½ï¿½ï¿½Âµï¿½ phi)
+// ×¢ï¿½â£ºassemble_elasticity_system ï¿½Ú²ï¿½ï¿½ï¿½ï¿½È¡ locally_relevant_solution_phase_field
 assemble_elasticity_system();
 solve_elasticity();
 
-// B. ¸üÐÂÀúÊ·³¡ H
-// Ïà³¡ÑÝ»¯ÒÀÀµÓÚ max(H_history, current_elastic_energy)
-// Ã¿´Îµ¯ÐÔ³¡¸üÐÂºó£¬Ó¦±äÄÜ±äÁË£¬ËùÒÔ±ØÐë¸üÐÂÀúÊ·³¡¹©Ïà³¡Çó½âÆ÷Ê¹ÓÃ
+// B. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê·ï¿½ï¿½ H
+// ï¿½à³¡ï¿½Ý»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ max(H_history, current_elastic_energy)
+// Ã¿ï¿½Îµï¿½ï¿½Ô³ï¿½ï¿½ï¿½ï¿½Âºï¿½Ó¦ï¿½ï¿½ï¿½Ü±ï¿½ï¿½Ë£ï¿½ï¿½ï¿½ï¿½Ô±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê·ï¿½ï¿½ï¿½ï¿½ï¿½à³¡ï¿½ï¿½ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½
 update_history_field(); 
 
-// ¼ÇÂ¼±¾´Îµü´úÇ°µÄ phi£¬ÓÃÓÚ¼ÆËãÎó²î
-// ×¢Òâ£ºÎÒÃÇÒª±È½ÏµÄÊÇ"±¾´ÎNewtonËã³öµÄphi"ºÍ"ÉÏÒ»´ÎÍâ²¿µü´úµÄphi"
+// ï¿½ï¿½Â¼ï¿½ï¿½ï¿½Îµï¿½ï¿½ï¿½Ç°ï¿½ï¿½ phiï¿½ï¿½ï¿½ï¿½ï¿½Ú¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+// ×¢ï¿½â£ºï¿½ï¿½ï¿½ï¿½Òªï¿½È½Ïµï¿½ï¿½ï¿½"ï¿½ï¿½ï¿½ï¿½Newtonï¿½ï¿½ï¿½ï¿½ï¿½phi"ï¿½ï¿½"ï¿½ï¿½Ò»ï¿½ï¿½ï¿½â²¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½phi"
 phi_prev_iter = completely_distributed_solution_phase_field;
 
-// C. Çó½âÏà³¡ (Newton-Raphson ÄÚ²¿µü´ú)
-// Õâ»áÀûÓÃ¸üÐÂºóµÄ history_field ¼ÆËãÐÂµÄ phi
+// C. ï¿½ï¿½ï¿½ï¿½à³¡ (Newton-Raphson ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½)
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã¸ï¿½ï¿½Âºï¿½ï¿½ history_field ï¿½ï¿½ï¿½ï¿½ï¿½Âµï¿½ phi
 solve_phase_field_newton();
 
-// D. ¼ÆËãÊÕÁ²Îó²î: || phi_new - phi_prev ||_inf
+// D. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: || phi_new - phi_prev ||_inf
 LA::MPI::Vector diff_vec;
 diff_vec.reinit(locally_owned_dofs_phase_field, mpi_communicator);
 diff_vec = completely_distributed_solution_phase_field;
@@ -2237,7 +2262,7 @@ pcout << "    WARNING: Staggered iteration did not converge fully." << std::endl
 } else {
 pcout << "    Staggered iteration converged in " << outer_iter << " steps." << std::endl;
 }
-// === ÐÞ¸Ä½áÊø ===
+// === ï¿½Þ¸Ä½ï¿½ï¿½ï¿½ ===
 
 compute_principal_stress();
 double max_tgo_sigma = compute_max_tgo_stress();
@@ -2248,8 +2273,8 @@ monitor_tc_top_midpoint_displacement();
 
 double new_dt = compute_time_step_size();
 
-// update_history_field() ÒÑ¾­ÔÚÑ­»·ÖÐÖ´ÐÐ¹ýÁË£¬ÕâÀï²»ÐèÒªÔÙ´ÎÖ´ÐÐ
-// Ö»ÐèÒª½«µ±Ç°²½µÄ½â±£´æÎª old_solution ¹©ÏÂÒ»²½Ê¹ÓÃ
+// update_history_field() ï¿½Ñ¾ï¿½ï¿½ï¿½Ñ­ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ð¹ï¿½ï¿½Ë£ï¿½ï¿½ï¿½ï¿½ï²»ï¿½ï¿½Òªï¿½Ù´ï¿½Ö´ï¿½ï¿½
+// Ö»ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½Ä½â±£ï¿½ï¿½Îª old_solution ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ê¹ï¿½ï¿½
 old_solution_concentration = locally_relevant_solution_concentration;
 old_solution_phase_field = locally_relevant_solution_phase_field;
 
